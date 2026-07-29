@@ -27,14 +27,16 @@ struct Config: Decodable {
         let arch: Arch
         let addr: UInt64
         let asm: Data
+        let expected: [Data]
 
         private enum CodingKeys: CodingKey {
             case arch
             case addr
             case asm
+            case expected
         }
 
-        init(from decoder: any Decoder) throws {
+        init(from decoder: Decoder) throws {
             let container: KeyedDecodingContainer<CodingKeys> = try decoder.container(keyedBy: CodingKeys.self)
             self.arch = try container.decode(Arch.self, forKey: .arch)
             self.addr = try {
@@ -59,21 +61,61 @@ struct Config: Decodable {
                 }
                 return value
             }()
+            self.expected = try {
+                guard container.contains(.expected) else {
+                    return []
+                }
+
+                if let hex = try? container.decode(String.self, forKey: .expected) {
+                    guard let value = Data(hex: hex) else {
+                        throw DecodingError.dataCorruptedError(
+                            forKey: CodingKeys.expected,
+                            in: container,
+                            debugDescription: "Invalid Entry.expected"
+                        )
+                    }
+                    return [value]
+                }
+
+                let hexValues = try container.decode([String].self, forKey: .expected)
+                return try hexValues.map { hex in
+                    guard let value = Data(hex: hex) else {
+                        throw DecodingError.dataCorruptedError(
+                            forKey: CodingKeys.expected,
+                            in: container,
+                            debugDescription: "Invalid Entry.expected"
+                        )
+                    }
+                    return value
+                }
+            }()
+
+            guard expected.allSatisfy({ $0.count == asm.count }) else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: CodingKeys.expected,
+                    in: container,
+                    debugDescription: "Entry.expected and Entry.asm must have the same byte length"
+                )
+            }
         }
     }
 
     struct Target: Decodable {
         let identifier: String
+        let binary: String
         let entries: [Entry]
 
         private enum CodingKeys: CodingKey {
             case identifier
+            case binary
             case entries
         }
 
-        init(from decoder: any Decoder) throws {
+        init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             self.identifier = try container.decode(String.self, forKey: .identifier)
+            self.binary = try container.decodeIfPresent(String.self, forKey: .binary)
+                ?? "Contents/MacOS/WeChat"
             self.entries = try container.decode([Entry].self, forKey: .entries)
         }
     }
