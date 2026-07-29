@@ -1,4 +1,4 @@
-// swift-tools-version:6.0
+// swift-tools-version:5.7
 
 import PackageDescription
 
@@ -16,7 +16,10 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.6.0")
+        .package(
+            url: "https://github.com/apple/swift-argument-parser",
+            exact: "1.2.3"
+        )
     ],
     targets: [
         .executableTarget(
@@ -24,6 +27,10 @@ let package = Package(
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser")
             ]
+        ),
+        .testTarget(
+            name: "WeChatTweakTests",
+            dependencies: ["WeChatTweak"]
         )
     ]
 )

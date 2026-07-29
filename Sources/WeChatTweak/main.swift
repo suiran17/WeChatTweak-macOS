@@ -18,7 +18,7 @@ extension Tweak {
 
         mutating func run() async throws {
             print("------ Current version ------")
-            print(try await Command.version(app: options.app) ?? "unknown")
+            print(try Command.version(app: options.app))
             print("------ Supported versions ------")
             try await Config.load(url: options.config).forEach({ print($0.version) })
             Darwin.exit(EXIT_SUCCESS)
@@ -34,29 +34,42 @@ extension Tweak {
         @OptionGroup
         var options: Tweak.Options
 
+        @Flag(help: "Validate all patches without changing or signing WeChat.app")
+        var dryRun = false
+
+        @Flag(help: "Do not create a .wechattweak-backup file before patching")
+        var noBackup = false
+
         mutating func run() async throws {
             print("------ Version ------")
-            let version = try await Command.version(app: options.app)
-            print("WeChat version: \(version ?? "unknown")")
+            let version = try Command.version(app: options.app)
+            print("WeChat version: \(version)")
 
             print("------ Config ------")
             guard let config = (try await Config.load(url: options.config)).first(where: { $0.version == version }) else {
                 throw Error.unsupportedVersion
             }
-            print("Matched config: \(config)")
+            print("Matched build \(config.version), \(config.targets.count) target groups")
 
             print("------ Patch ------")
-            try await Command.patch(
+            let result = try Command.patch(
                 app: options.app,
-                config: config
+                config: config,
+                dryRun: dryRun,
+                createBackup: !noBackup
             )
-            print("Done!")
+            if dryRun {
+                print("Dry run passed; no files were changed.")
+                Darwin.exit(EXIT_SUCCESS)
+            }
 
-            print("------ Resign ------")
-            try await Command.resign(
-                app: options.app
-            )
-            print("Done!")
+            if result.changedBinaries.isEmpty {
+                print("Already patched; no files were changed.")
+            } else {
+                print("------ Resign ------")
+                try Command.resign(app: options.app, modifiedBinaries: result.changedBinaries)
+                print("Patch and signing completed.")
+            }
 
             Darwin.exit(EXIT_SUCCESS)
         }
@@ -113,7 +126,7 @@ struct Tweak: AsyncParsableCommand {
                 }
             }
         )
-        var config: URL = URL(string:"https://raw.githubusercontent.com/sunnyyoung/WeChatTweak/refs/heads/master/config.json")!
+        var config: URL = Tweak.defaultConfigURL
     }
 
     static let configuration = CommandConfiguration(
@@ -124,6 +137,17 @@ struct Tweak: AsyncParsableCommand {
             Patch.self
         ]
     )
+
+    static var defaultConfigURL: URL {
+        let local = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("config.json")
+        if FileManager.default.fileExists(atPath: local.path) {
+            return local
+        }
+        return URL(
+            string: "https://raw.githubusercontent.com/sunnyyoung/WeChatTweak/refs/heads/master/config.json"
+        )!
+    }
 
     mutating func run() async throws {
         print(Tweak.helpMessage())
