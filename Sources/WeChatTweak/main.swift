@@ -40,6 +40,19 @@ extension Tweak {
         @Flag(help: "Do not create a .wechattweak-backup file before patching")
         var noBackup = false
 
+        @Option(
+            name: .customLong("menu-dylib"),
+            help: "Path to libWeChatTweakMenu.dylib (defaults to the directory containing wechattweak)",
+            transform: { URL(fileURLWithPath: $0) }
+        )
+        var menuDylib: URL?
+
+        @Flag(
+            name: .customLong("without-menu"),
+            help: "Apply binary patches without installing the in-WeChat Tweak menu"
+        )
+        var withoutMenu = false
+
         mutating func run() async throws {
             print("------ Version ------")
             let version = try Command.version(app: options.app)
@@ -50,6 +63,19 @@ extension Tweak {
                 throw Error.unsupportedVersion
             }
             print("Matched build \(config.version), \(config.targets.count) target groups")
+
+            var resolvedMenuRuntime: URL?
+            if !withoutMenu {
+                print("------ Menu preflight ------")
+                let runtime = try MenuInstaller.resolveRuntime(explicitURL: menuDylib)
+                let report = try MenuInstaller.preflight(app: options.app, runtime: runtime)
+                resolvedMenuRuntime = runtime
+                print("Menu runtime: \(runtime.path)")
+                print(
+                    "Loader: \(report.injectedArchitectures.count) to inject, "
+                    + "\(report.alreadyInjectedArchitectures.count) already injected"
+                )
+            }
 
             print("------ Patch ------")
             let result = try Command.patch(
@@ -63,11 +89,30 @@ extension Tweak {
                 Darwin.exit(EXIT_SUCCESS)
             }
 
-            if result.changedBinaries.isEmpty {
+            var signingInputs = result.changedBinaries
+            var menuChanged = false
+            if let runtime = resolvedMenuRuntime {
+                print("------ Menu ------")
+                let report = try MenuInstaller.install(
+                    app: options.app,
+                    runtime: runtime,
+                    createBackup: !noBackup
+                )
+                menuChanged = true
+                signingInputs.append(report.destination)
+                signingInputs.append(report.executable)
+                print("Installed: \(report.destination.path)")
+                print(
+                    "Loader: \(report.injector.injectedArchitectures.count) injected, "
+                    + "\(report.injector.alreadyInjectedArchitectures.count) already injected"
+                )
+            }
+
+            if result.changedBinaries.isEmpty && !menuChanged {
                 print("Already patched; no files were changed.")
             } else {
                 print("------ Resign ------")
-                try Command.resign(app: options.app, modifiedBinaries: result.changedBinaries)
+                try Command.resign(app: options.app, modifiedBinaries: signingInputs)
                 print("Patch and signing completed.")
             }
 

@@ -13,6 +13,13 @@ let package = Package(
             targets: [
                 "WeChatTweak"
             ]
+        ),
+        .library(
+            name: "WeChatTweakMenu",
+            type: .dynamic,
+            targets: [
+                "WeChatTweakMenu"
+            ]
         )
     ],
     dependencies: [
@@ -26,6 +33,17 @@ let package = Package(
             name: "WeChatTweak",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser")
+            ]
+        ),
+        .target(
+            name: "WeChatTweakMenu",
+            path: "Sources/WeChatTweakMenu",
+            publicHeadersPath: "include",
+            cSettings: [
+                .unsafeFlags(["-fobjc-arc"])
+            ],
+            linkerSettings: [
+                .linkedFramework("AppKit")
             ]
         ),
         .testTarget(
