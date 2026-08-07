@@ -39,7 +39,7 @@ struct MenuInstaller {
     }
 
     static func resolveRuntime(explicitURL: URL?) throws -> URL {
-        if let explicitURL {
+        if let explicitURL = explicitURL {
             let resolved = explicitURL.standardizedFileURL.resolvingSymlinksInPath()
             guard FileManager.default.fileExists(atPath: resolved.path) else {
                 throw Error.invalidRuntime(path: resolved.path)

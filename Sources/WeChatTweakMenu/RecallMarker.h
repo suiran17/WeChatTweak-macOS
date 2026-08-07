@@ -2,7 +2,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-/// Installs the WeChat 4.1.12 recall-ID and chat-item runtime hooks.
+/// Installs the recall-ID and chat-item runtime hooks selected for the current
+/// supported WeChat build.
 /// Calling this function more than once is safe.
 FOUNDATION_EXPORT void WCTRecallMarkerInstall(void);
 

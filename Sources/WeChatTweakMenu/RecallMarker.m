@@ -1,4 +1,5 @@
 #import "RecallMarker.h"
+#import "LegacyRecallMarker.h"
 
 #import <AppKit/AppKit.h>
 #import <dispatch/dispatch.h>
@@ -1344,6 +1345,11 @@ void WCTRecallMarkerRegisterExistingItem(
 }
 
 void WCTRecallMarkerInstall(void) {
+    if (WCTLegacyRecallMarkerSupportsCurrentBuild()) {
+        WCTLegacyRecallMarkerInstall();
+        return;
+    }
+
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         WCTLoadRecalledServerIDs();
@@ -1357,5 +1363,5 @@ void WCTRecallMarkerInstall(void) {
 }
 
 BOOL WCTRecallMarkerIsAvailable(void) {
-    return WCTRuntimeHooksInstalled;
+    return WCTLegacyRecallMarkerIsAvailable() || WCTRuntimeHooksInstalled;
 }

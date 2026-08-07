@@ -1,11 +1,11 @@
-// swift-tools-version:5.7
+// swift-tools-version:5.3
 
 import PackageDescription
 
 let package = Package(
     name: "WeChatTweak",
     platforms: [
-        .macOS(.v12)
+        .macOS(.v10_15)
     ],
     products: [
         .executable(
@@ -22,18 +22,11 @@ let package = Package(
             ]
         )
     ],
-    dependencies: [
-        .package(
-            url: "https://github.com/apple/swift-argument-parser",
-            exact: "1.2.3"
-        )
-    ],
+    dependencies: [],
     targets: [
         .executableTarget(
             name: "WeChatTweak",
-            dependencies: [
-                .product(name: "ArgumentParser", package: "swift-argument-parser")
-            ]
+            dependencies: []
         ),
         .target(
             name: "WeChatTweakMenu",
@@ -45,10 +38,6 @@ let package = Package(
             linkerSettings: [
                 .linkedFramework("AppKit")
             ]
-        ),
-        .testTarget(
-            name: "WeChatTweakTests",
-            dependencies: ["WeChatTweak"]
         )
     ]
 )

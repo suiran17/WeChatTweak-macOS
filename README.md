@@ -17,7 +17,12 @@ A command-line tool for tweaking WeChat.
 
 | 微信版本 | 构建号 | Apple Silicon | Intel | 拦截撤回 | 头像撤回标识 | Tweak 菜单 | 阻止更新 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| 3.8.10.17 | 28632 | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | 4.1.12 | 269341 | ✅ | ✅ | ✅ | Intel / Rosetta | ✅ | ✅ |
+
+微信 3.8.10.17（28632）通过该版本仍保留的 Objective-C 消息服务和聊天气泡接口
+拦截撤回，不依赖固定代码地址。对方撤回后，原消息会保留，并在发送者头像下显示
+「[已撤回]」；自己发送的消息仍可正常撤回。该运行时支持 Intel 与 Apple Silicon。
 
 微信 4.x 已把主要逻辑迁移到 `Contents/Resources/wechat.dylib`。本项目会按配置选择
 实际二进制，并在写入前核对原始字节；配置与本机二进制不一致时会直接停止，不会写入
@@ -57,6 +62,17 @@ swift run wechattweak patch --config ./config.json
 
 默认会同时安装微信内 Tweak 菜单。只应用静态补丁可添加 `--without-menu`；自行构建
 或移动菜单运行库时可通过 `--menu-dylib /path/to/libWeChatTweakMenu.dylib` 指定。
+
+在 macOS Catalina 上可直接使用系统自带的 Command Line Tools 构建：
+
+```bash
+make build
+make test
+sudo ./dist/wechattweak patch --config ./config.json \
+  --menu-dylib ./dist/libWeChatTweakMenu.dylib
+```
+
+28632 的撤回功能完全由菜单运行库提供，因此不要对该版本使用 `--without-menu`。
 
 > 修改并重新签名会使微信失去腾讯的原始代码签名。微信升级后请先运行
 > `patch --dry-run`，不要把 269341 的地址用于其他构建号。

@@ -85,40 +85,38 @@ struct DylibInjector {
         // Validate every slice before opening the binary for writes.
         let data = try Data(contentsOf: binary, options: .mappedIfSafe)
         let operations = try makeOperations(data: data, dylibPath: dylibPath)
-        let report = report(for: operations)
+        let injectionReport = report(for: operations)
 
         guard operations.contains(where: { $0.state == .needsInjection }) else {
-            return report
+            return injectionReport
         }
 
         let file = try FileHandle(forUpdating: binary)
-        defer { try? file.close() }
+        defer { file.closeFile() }
 
         for operation in operations where operation.state == .needsInjection {
             // LC_CODE_SIGNATURE must remain last. Move it and any following load
             // commands forward before inserting the new command in its place.
             if !operation.oldCommandTail.isEmpty {
-                try file.seek(
-                    toOffset: UInt64(operation.insertionOffset + operation.command.count)
+                file.seek(
+                    toFileOffset: UInt64(operation.insertionOffset + operation.command.count)
                 )
-                try file.write(contentsOf: operation.oldCommandTail)
+                file.write(operation.oldCommandTail)
             }
 
-            try file.seek(toOffset: UInt64(operation.insertionOffset))
-            try file.write(contentsOf: operation.command)
+            file.seek(toFileOffset: UInt64(operation.insertionOffset))
+            file.write(operation.command)
 
-            try file.seek(toOffset: UInt64(operation.slice.offset + 16))
-            try file.write(contentsOf: littleEndian(operation.oldCommandCount + 1))
-            try file.seek(toOffset: UInt64(operation.slice.offset + 20))
-            try file.write(
-                contentsOf: littleEndian(
-                    operation.oldCommandSize + UInt32(operation.command.count)
-                )
+            file.seek(toFileOffset: UInt64(operation.slice.offset + 16))
+            file.write(littleEndian(operation.oldCommandCount + 1))
+            file.seek(toFileOffset: UInt64(operation.slice.offset + 20))
+            file.write(
+                littleEndian(operation.oldCommandSize + UInt32(operation.command.count))
             )
         }
 
-        try file.synchronize()
-        return report
+        file.synchronizeFile()
+        return injectionReport
     }
 
     static func architectures(
@@ -128,7 +126,7 @@ struct DylibInjector {
         let data = try Data(contentsOf: binary, options: .mappedIfSafe)
         let parsedSlices = try slices(in: data)
 
-        if let expectedFileType {
+        if let expectedFileType = expectedFileType {
             for slice in parsedSlices {
                 guard
                     let fileType = readUInt32LE(data, at: slice.offset + 12),
@@ -396,19 +394,23 @@ struct DylibInjector {
                     ? readUInt32LE(data, at: archOffset + 12)
                     : readUInt32BE(data, at: archOffset + 12)
 
-                guard let cpu, let offset, let size else {
+                guard
+                    let cpuValue = cpu,
+                    let offsetValue = offset,
+                    let sizeValue = size
+                else {
                     throw Error.invalidFile
                 }
 
-                let intOffset = Int(offset)
-                let intSize = Int(size)
+                let intOffset = Int(offsetValue)
+                let intSize = Int(sizeValue)
                 guard
                     intOffset <= data.count,
                     intSize <= data.count - intOffset
                 else {
                     throw Error.invalidFile
                 }
-                result.append(Slice(cpu: cpu, offset: intOffset, size: intSize))
+                result.append(Slice(cpu: cpuValue, offset: intOffset, size: intSize))
             }
             return result
         }
@@ -436,23 +438,29 @@ struct DylibInjector {
 
     private static func readUInt32LE(_ data: Data, at offset: Int) -> UInt32? {
         guard offset >= 0, offset <= data.count - 4 else { return nil }
-        return data.withUnsafeBytes {
-            UInt32(littleEndian: $0.loadUnaligned(fromByteOffset: offset, as: UInt32.self))
+        var value: UInt32 = 0
+        _ = withUnsafeMutableBytes(of: &value) { destination in
+            data.copyBytes(to: destination, from: offset..<(offset + 4))
         }
+        return UInt32(littleEndian: value)
     }
 
     private static func readUInt32BE(_ data: Data, at offset: Int) -> UInt32? {
         guard offset >= 0, offset <= data.count - 4 else { return nil }
-        return data.withUnsafeBytes {
-            UInt32(bigEndian: $0.loadUnaligned(fromByteOffset: offset, as: UInt32.self))
+        var value: UInt32 = 0
+        _ = withUnsafeMutableBytes(of: &value) { destination in
+            data.copyBytes(to: destination, from: offset..<(offset + 4))
         }
+        return UInt32(bigEndian: value)
     }
 
     private static func readUInt64LE(_ data: Data, at offset: Int) -> UInt64? {
         guard offset >= 0, offset <= data.count - 8 else { return nil }
-        return data.withUnsafeBytes {
-            UInt64(littleEndian: $0.loadUnaligned(fromByteOffset: offset, as: UInt64.self))
+        var value: UInt64 = 0
+        _ = withUnsafeMutableBytes(of: &value) { destination in
+            data.copyBytes(to: destination, from: offset..<(offset + 8))
         }
+        return UInt64(littleEndian: value)
     }
 
     private static func write<T: FixedWidthInteger>(

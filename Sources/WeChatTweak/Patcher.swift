@@ -80,7 +80,7 @@ struct Patcher {
         }
 
         let file = try FileHandle(forReadingFrom: binary)
-        defer { try? file.close() }
+        defer { file.closeFile() }
 
         let slices = try machOSlices(file: file)
         var operations: [Operation] = []
@@ -146,7 +146,7 @@ struct Patcher {
         guard plan.hasChanges else { return }
 
         let file = try FileHandle(forUpdating: plan.binary)
-        defer { try? file.close() }
+        defer { file.closeFile() }
 
         // Revalidate every range before the first write so an external change cannot
         // leave a partially patched file.
@@ -162,10 +162,10 @@ struct Patcher {
         }
 
         for operation in plan.operations where operation.state == .ready {
-            try file.seek(toOffset: operation.fileOffset)
-            try file.write(contentsOf: operation.replacement)
+            file.seek(toFileOffset: operation.fileOffset)
+            file.write(operation.replacement)
         }
-        try file.synchronize()
+        file.synchronizeFile()
     }
 
     private struct Slice {
@@ -272,8 +272,9 @@ struct Patcher {
     }
 
     private static func read(file: FileHandle, offset: UInt64, count: Int) throws -> Data {
-        try file.seek(toOffset: offset)
-        guard let data = try file.read(upToCount: count), data.count == count else {
+        file.seek(toFileOffset: offset)
+        let data = file.readData(ofLength: count)
+        guard data.count == count else {
             throw Error.malformedMachO("unexpected end of file")
         }
         return data
